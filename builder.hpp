@@ -96,17 +96,17 @@ class Builder<T,ptr,ptrs...> : private Builder<T,ptrs...> {
             static_assert(check != 1, "Can't get from incompleted build");
         }
         template<auto p, typename = std::enable_if_t<detail::isEqualMemPtr_v<p,ptr>>>
-        constexpr parent& set(const infoT& val) {
+        [[nodiscard]] constexpr parent& set(const infoT& val) {
             this->getValue().*ptr = val;
             return *this;
         }
         template<auto p, typename = std::enable_if_t<detail::isEqualMemPtr_v<p,ptr>>>
-        constexpr parent& set(infoT&& val) {
+        [[nodiscard]] constexpr parent& set(infoT&& val) {
             this->getValue().*ptr = std::move(val);
             return *this;
         }
         template<auto p, typename Val, typename = std::enable_if_t<!detail::isEqualMemPtr_v<p,ptr>>>
-        constexpr auto set(Val&& v) {
+        [[nodiscard]] constexpr auto set(Val&& v) {
             using returnType = std::remove_reference_t<decltype(std::declval<parent>().template set<p>(std::forward<Val>(v)))>;
             return typename returnType::template addInFront<ptr>(static_cast<parent>(*this).template set<p>(std::forward<Val>(v)));
         }
