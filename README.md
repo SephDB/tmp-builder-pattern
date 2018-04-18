@@ -34,4 +34,5 @@ Rect w = Rect::Builder().set<&Rect::x>(0).set<&Rect::y>(10).set<&Rect::w>(15).se
 ```
 
 If there are non-default-constructible members in the struct, you can pass a partially-constructed struct to the Builder constructor.
-On -O2 on both clang and gcc, all traces of this class compile away.
+
+On -O2 on both clang and gcc, all traces of this class compile away, and the class is fully constexpr-enabled.
