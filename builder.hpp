@@ -61,14 +61,24 @@ class Builder<T> {
             return std::move(value);
         }
         template<auto p>
-        constexpr Builder<T> set(const detail::memPtrType<p>& v) {
+        constexpr Builder<T>& set(const detail::memPtrType<p>& v) & {
             value.*p = v;
             return *this;
         }
         template<auto p>
-        constexpr Builder<T> set(detail::memPtrType<p>&& v) {
+        constexpr Builder<T>& set(detail::memPtrType<p>&& v) & {
             value.*p = std::move(v);
             return *this;
+        }
+        template<auto p>
+        constexpr Builder<T>&& set(const detail::memPtrType<p>& v) && {
+            value.*p = v;
+            return std::move(*this);
+        }
+        template<auto p>
+        constexpr Builder<T>&& set(detail::memPtrType<p>&& v) && {
+            value.*p = std::move(v);
+            return std::move(*this);
         }
 };
 
@@ -86,11 +96,17 @@ class Builder<T,ptr,ptrs...> : private Builder<T,ptrs...> {
     using addInFront = Builder<T,newptrs...,ptr,ptrs...>;
 
     constexpr Builder(const parent& t) : parent(t) {};
+    constexpr Builder(parent&& t) : parent(std::move(t)) {};
 
     template<auto p, typename Val>
-    [[nodiscard]] constexpr auto set_nested(Val&& v) {
+    [[nodiscard]] constexpr auto set_nested(Val&& v) & {
         using returnType = std::remove_reference_t<decltype(std::declval<parent>().template set<p>(std::forward<Val>(v)))>;
         return typename returnType::template addInFront<ptr>(static_cast<parent>(*this).template set<p>(std::forward<Val>(v)));
+    }
+    template<auto p, typename Val>
+    [[nodiscard]] constexpr auto set_nested(Val&& v) && {
+        using returnType = std::remove_reference_t<decltype(std::declval<parent&&>().template set<p>(std::forward<Val>(v)))>;
+        return typename returnType::template addInFront<ptr>{static_cast<parent&&>(std::move(*this)).template set<p>(std::forward<Val>(v))};
     }
 
     public:
@@ -104,23 +120,45 @@ class Builder<T,ptr,ptrs...> : private Builder<T,ptrs...> {
         constexpr T& get() {
             static_assert(check != 1, "Can't get from incompleted build");
         }
+        
+        //Simple case: the member set is the same as this Builder's, return parent with changed value.
         template<auto p, typename = std::enable_if_t<detail::isEqualMemPtr_v<p,ptr>>>
-        [[nodiscard]] constexpr parent& set(const infoT& val) {
+        [[nodiscard]] constexpr parent& set(const infoT& val) & {
             this->getValue().*ptr = val;
             return *this;
         }
         template<auto p, typename = std::enable_if_t<detail::isEqualMemPtr_v<p,ptr>>>
-        [[nodiscard]] constexpr parent& set(infoT&& val) {
+        [[nodiscard]] constexpr parent& set(infoT&& val) & {
             this->getValue().*ptr = std::move(val);
             return *this;
         }
+        template<auto p, typename = std::enable_if_t<detail::isEqualMemPtr_v<p,ptr>>>
+        [[nodiscard]] constexpr parent&& set(const infoT& val) && {
+            this->getValue().*ptr = val;
+            return std::move(*this);
+        }
+        template<auto p, typename = std::enable_if_t<detail::isEqualMemPtr_v<p,ptr>>>
+        [[nodiscard]] constexpr parent&& set(infoT&& val) && {
+            this->getValue().*ptr = std::move(val);
+            return std::move(*this);
+        }
+
+        //More difficult case: the member set is not ours, push set through in case it is a required parameter
         template<auto p, typename = std::enable_if_t<!detail::isEqualMemPtr_v<p,ptr>>>
-        [[nodiscard]] constexpr auto set(const detail::memPtrType<p>& v) {
+        [[nodiscard]] constexpr auto set(const detail::memPtrType<p>& v) & {
             return set_nested<p>(v);
         }
         template<auto p, typename = std::enable_if_t<!detail::isEqualMemPtr_v<p,ptr>>>
-        [[nodiscard]] constexpr auto set(detail::memPtrType<p>&& v) {
+        [[nodiscard]] constexpr auto set(detail::memPtrType<p>&& v) & {
             return set_nested<p>(std::move(v));
+        }
+        template<auto p, typename = std::enable_if_t<!detail::isEqualMemPtr_v<p,ptr>>>
+        [[nodiscard]] constexpr auto set(const detail::memPtrType<p>& v) && {
+            return std::move(*this).template set_nested<p>(v);
+        }
+        template<auto p, typename = std::enable_if_t<!detail::isEqualMemPtr_v<p,ptr>>>
+        [[nodiscard]] constexpr auto set(detail::memPtrType<p>&& v) && {
+            return std::move(*this).template set_nested<p>(std::move(v));
         }
 };
 }
