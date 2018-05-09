@@ -1,5 +1,5 @@
 # TMP Builder pattern
-Class for creating a compiletime-checked builder of a struct type
+Class for creating a builder for types with mandatory members, statically checking whether all of them are set.
 
 As an illustrative example problem, here's a simple Rectangle struct used in a hypothetical graphics library:
 ```cpp
@@ -10,13 +10,38 @@ struct Rect {
 };
 ```
 Here, the x,y,w and h attributes are supposed to be mandatory, while color and rotation have default values and are optional.
-You can easily construct it using a named initializer list and have the code be clear:
+You can construct it using a named initializer list and have the code be clear as to what you meant:
 ```
 Rect r = {.x = 0, .y = 10, .h = 15};
 ```
-But it will simply default-construct all the members you did not mention and for more complicated structs, it can get easy to miss some. As evidenced by me forgetting to set .w above.
+But this will default-construct all the members you did not mention and for more complicated structs, missing mandatory arguments is an easy mistake to make. As evidenced by me forgetting to set the width above.
 
-With this project, Rect can easily define a Rect builder that statically checks whether all required parameters have been set:
+A common solution to this problem is the Builder pattern, where a separate class has methods for building the object
+```cpp
+class RectBuilder {
+    Rect inner;
+    bool has_x=false,has_y=false,has_w=false,has_h=false;
+    public:
+        RectBuilder& setX(int x) {inner.x = x;has_x=true;return *this;}
+        RectBuilder& setY(int y) {inner.y = y;has_y=true;return *this;}
+        RectBuilder& setW(int w) {inner.w = w;has_w=true;return *this;}
+        RectBuilder& setH(int h) {inner.h = h;has_h=true;return *this;}
+        RectBuilder& setColor(std::array<uint8_t,4> color) {inner.color = color;return *this;}
+        RectBuilder& setRotation(double rotation) {inner.rotation = rotation;return *this;}
+
+        Rect& get() {
+            if(has_x && has_y && has_h && has_w) {
+                return inner;
+            } else {
+                throw SomeError();
+            }
+        }
+};
+Rect r = RectBuilder().setX(10).setY(20).setW(10).setH(10).get();
+```
+This allows for readable syntax, initialization of members in any order and/or over the course multiple statements, checking if preconditions are filled(mandatory fields in our case), etc. The major disadvantage is that this is a lot of boilerplate to write for every type you want to apply this technique to, and that without a more complex builder, the check for mandatory arguments has to be done at runtime.
+
+This project simplifies that work to a single alias in the Rect type:
 ```cpp
 struct Rect {
   int x,y,w,h;
@@ -24,9 +49,11 @@ struct Rect {
   double rotation = 0.0;
   using Builder = tmp_builder::Builder<Rect,&Rect::x,&Rect::y,&Rect::w,&Rect::h>;
 };
+Rect r = Rect::Builder().set<&Rect::x>(10).set<&Rect::y>(20).set<&Rect::w>(10).set<&Rect::h>(10).get();
 ```
+The first parameter type is the type you're creating the builder for, and then follows a list of pointers-to-members for all required members.
 
-`tmp_builder::Builder` has two methods: `.set<memPtr>(value)` for each of the members and `.get()` to extract the finished struct, which will static_assert if all required members haven't been set.
+`.get()` will static_assert if all required members haven't been set.
 Example usage:
 ```
 Rect r = Rect::Builder().set<&Rect::x>(0).set<&Rect::y>(10).set<&Rect::h>(15).get(); //static_assert: error: static_assert failed "Can't get from incompleted build" with type Rect::Builder<Rect,&Rect::w> mentioned in error message
