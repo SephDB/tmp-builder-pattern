@@ -1,5 +1,6 @@
 # TMP Builder pattern
-Class for creating a builder for types with mandatory members, statically checking whether all of them are set.
+C++17 single-header library for creating a builder for types with mandatory members, statically checking whether all of them are set.
+It is fully constexpr-enabled and compiles away to setting all members directly starting on -O2 on both GCC and Clang in non-constexpr usage.
 
 As an illustrative example problem, here's a simple Rectangle struct used in a hypothetical graphics library:
 ```cpp
@@ -39,7 +40,7 @@ class RectBuilder {
 };
 Rect r = RectBuilder().setX(10).setY(20).setW(10).setH(10).get();
 ```
-This allows for readable syntax, initialization of members in any order and/or over the course multiple statements, checking if preconditions are filled(mandatory fields in our case), etc. The major disadvantage is that this is a lot of boilerplate to write for every type you want to apply this technique to, and that without a more complex builder, the check for mandatory arguments has to be done at runtime.
+This allows for readable syntax, initialization of members in any order and/or over the course of multiple statements, checking if preconditions are filled(mandatory fields in our case), etc. The major disadvantage is that this is a lot of boilerplate to write for every type you want to apply this technique to, and that without a more complex builder, the check for mandatory arguments has to be done at runtime.
 
 This project simplifies that work to a single alias in the Rect type:
 ```cpp
@@ -54,12 +55,15 @@ Rect r = Rect::Builder().set<&Rect::x>(10).set<&Rect::y>(20).set<&Rect::w>(10).s
 The first parameter type is the type you're creating the builder for, and then follows a list of pointers-to-members for all required members.
 
 `.get()` will static_assert if all required members haven't been set.
-Example usage:
+Example:
 ```
 Rect r = Rect::Builder().set<&Rect::x>(0).set<&Rect::y>(10).set<&Rect::h>(15).get(); //static_assert: error: static_assert failed "Can't get from incompleted build" with type Rect::Builder<Rect,&Rect::w> mentioned in error message
 Rect w = Rect::Builder().set<&Rect::x>(0).set<&Rect::y>(10).set<&Rect::w>(15).set<&Rect::h>(15).set<&Rect::color>({0,128,0,200}).get(); //OK
 ```
 
-If there are non-default-constructible members in the struct, you can pass a partially-constructed struct to the Builder constructor.
+## Usage
 
-On -O2 on both clang and gcc, all traces of this class compile away, and the class is fully constexpr-enabled.
+To use this library, include builder.hpp and create an alias to a builder type with your own type as the first template argument and pointers to the mandatory members as the remaining arguments.
+The type is required to be default-constructible. If some members are not, it is possible to pass a partially-constructed object into the Builder's constructor. These non-default-constructible members should be excluded from the mandatory member list as they do not get picked up on having been initialized already.
+
+Feeback would be greatly appreciated.
