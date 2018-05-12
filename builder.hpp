@@ -2,6 +2,7 @@
 #define _H_TMP_BUILDER_PATTERN__
 
 #include <type_traits>
+#include <experimental/type_traits>
 #include <utility>
 
 namespace tmp_builder {
@@ -34,6 +35,12 @@ namespace detail {
 
     template<auto ptr, auto ptr2>
     constexpr bool isEqualMemPtr_v = isEqualMemPtr<ptr,ptr2>::value;
+
+    template<auto ptr>
+    struct canApplyMemPtr {
+        template<typename T>
+        using check = decltype(std::declval<T>().*ptr);
+    };
 
 }
 
@@ -87,7 +94,7 @@ class Builder<T,ptr,ptrs...> : private Builder<T,ptrs...> {
     using parent = Builder<T,ptrs...>;
     using info = detail::ReadMemPtr<ptr>;
     using infoT = std::remove_reference_t<typename info::type>;
-    static_assert(std::is_same_v<T,typename info::containing_type>, "mismatching member pointer types");
+    static_assert(std::experimental::is_detected_v<detail::canApplyMemPtr<ptr>::template check,T>, "mismatching member pointer types");
     
     template<typename,auto...>
     friend class Builder;
